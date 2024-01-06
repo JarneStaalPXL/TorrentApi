@@ -10,8 +10,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.6.5",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "serve-index": "^1.9.1",
     "torrent-search-api": "^2.1.4",
     "webtorrent": "^2.1.32"
   }
