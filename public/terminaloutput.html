@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Console Log Stream</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: black;
+            color: limegreen;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 48px;
+            /* Doubled font size for the header */
+        }
+
+        #logs {
+            padding: 20px;
+            /* Doubled padding */
+            max-height: 70vh;
+            /* Set maximum height as a percentage of viewport height */
+            overflow-y: auto;
+            /* Enable vertical scrollbar if needed */
+            white-space: pre-wrap;
+            /* Wrap text */
+            font-size: 32px;
+            /* Doubled font size for logs */
+        }
+
+        #diskInfo {
+            margin-top: 20px;
+            text-align: center;
+            font-family: Arial, sans-serif;
+            color: #333;
+            font-size: 24px;
+            /* Doubled font size for disk info */
+        }
+
+        p {
+            margin: 0;
+        }
+
+        .progress-container {
+            background-color: #ddd;
+            /* Light grey background */
+            border-radius: 4px;
+            /* Rounded corners for container */
+            margin: 10px 0;
+            /* Margin to the top and bottom */
+            padding: 3px;
+            /* Padding inside the container */
+            width: 80%;
+            /* Set a width for the container */
+            margin-left: auto;
+            /* Center the container */
+            margin-right: auto;
+            /* Center the container */
+        }
+
+        .progress-bar {
+            background-color: limegreen;
+            /* Green background for progress */
+            border-radius: 4px;
+            /* Rounded corners for progress bar */
+            height: 20px;
+            /* Height for progress bar */
+            text-align: center;
+            /* Center text inside progress bar */
+            color: black;
+            /* Text color */
+            line-height: 20px;
+            /* Center text vertically */
+            white-space: nowrap;
+            /* Prevent text from wrapping */
+        }
+
+        @media (max-width: 768px) {
+
+            /* Adjust styles for screens up to 768px wide (typical mobile devices) */
+            h1 {
+                font-size: 24px;
+                /* Reduce header font size for mobile */
+            }
+
+            #logs {
+                max-height: 50vh;
+                /* Reduce maximum height for logs on mobile */
+                padding: 10px;
+                /* Reduce padding for logs on mobile */
+                font-size: 20px;
+                /* Reduce font size for logs on mobile */
+            }
+
+            #diskInfo {
+                margin-top: 10px;
+                /* Reduce margin for disk info on mobile */
+                font-size: 16px;
+                /* Reduce font size for disk info on mobile */
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Movie Download Progress</h1>
+    <div id="downloads"></div>
+    <div id="diskInfo"></div> <!-- New div for disk information -->
+
+    <h1>Real-time Console Logs</h1>
+    <div id="logs"></div>
+
+    <script>
+        const ws = new WebSocket('ws://192.168.0.136:8085');
+        const logContainer = document.getElementById('logs');
+        const downloadsContainer = document.getElementById('downloads'); // Moved outside the function for global access
+        const diskInfoContainer = document.getElementById('diskInfo'); // Reference to the new disk info div
+    
+        ws.onmessage = function (event) {
+            let data;
+            try {
+                data = JSON.parse(event.data);
+            } catch (e) {
+                data = event.data; // It's a string, not JSON
+            }
+    
+            // Check if data is an object and update downloads accordingly
+            if (typeof data === 'object' && data.length !== undefined) {
+                // Assuming data is an array of active downloads
+                updateDownloads(data);
+            } else if (typeof data === 'string') {
+                if (data.startsWith('Disk Usage:')) {
+                    diskInfoContainer.textContent = data; // Update disk info
+                } else {
+                    // It's a log message
+                    const log = document.createElement('p');
+                    log.textContent = data;
+                    logContainer.appendChild(log);
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }
+            }
+        };
+    
+        function updateDownloads(downloadsData) {
+            downloadsContainer.innerHTML = ''; // Clear existing content
+    
+            downloadsData.forEach(download => {
+                const progressContainer = document.createElement('div');
+                progressContainer.className = 'progress-container';
+    
+                const progressBar = document.createElement('div');
+                progressBar.className = 'progress-bar';
+                progressBar.style.width = `${download.progress}%`;
+                progressBar.textContent = `${download.title} [${download.progress}%]`;
+    
+                progressContainer.appendChild(progressBar);
+                downloadsContainer.appendChild(progressContainer);
+            });
+        }
+    
+        // Remove the setInterval as it's no longer needed; WebSocket will push updates
+        // setInterval(updateDownloads, 5000); // Removed this line
+    
+        // Also remove the initial call to updateDownloads as WebSocket will push the initial state
+        // updateDownloads(); // Removed this line
+    </script>
+    
+</body>
+
+</html>
