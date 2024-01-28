@@ -396,3 +396,31 @@ http://192.168.0.136:3000/streamed-movies/The%20Hunger%20Games%20The%20Ballad%20
 http://192.168.0.136:3000/streamed-movies/Spider%20Man%20Across%20The%20Spider%20Verse.mkv
 #EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/w46Vw536HwNnEzOa7J24YH9DPRS.jpg" group-title="Movies",My Fault
 http://192.168.0.136:3000/streamed-movies/My%20Fault.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/9GBhzXMFjgcZ3FdR9w3bUMMTps5.jpg" group-title="Movies",The Marvels
+http://192.168.0.136:3000/streamed-movies/The%20Marvels.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/ldfCF9RhR40mppkzmftxapaHeTo.jpg" group-title="Movies",Migration
+http://192.168.0.136:3000/streamed-movies/Migration.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/7lTnXOy0iNtBAdRP3TZvaKJ77F6.jpg" group-title="Movies",Aquaman and the Lost Kingdom
+http://192.168.0.136:3000/streamed-movies/Aquaman%20and%20the%20Lost%20Kingdom.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/qhb1qOilapbapxWQn9jtRCMwXJF.jpg" group-title="Movies",Wonka
+http://192.168.0.136:3000/streamed-movies/Wonka.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/7lTnXOy0iNtBAdRP3TZvaKJ77F6.jpg" group-title="Movies",Aquaman and the Lost Kingdom
+http://192.168.0.136:3000/streamed-movies/Aquaman%20and%20the%20Lost%20Kingdom.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/7lTnXOy0iNtBAdRP3TZvaKJ77F6.jpg" group-title="Movies",Aquaman and the Lost Kingdom
+http://192.168.0.136:3000/streamed-movies/Aquaman%20and%20the%20Lost%20Kingdom.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/ldfCF9RhR40mppkzmftxapaHeTo.jpg" group-title="Movies",Migration
+http://192.168.0.136:3000/streamed-movies/Migration.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/9GBhzXMFjgcZ3FdR9w3bUMMTps5.jpg" group-title="Movies",The Marvels
+http://192.168.0.136:3000/streamed-movies/The%20Marvels.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg" group-title="Movies",The Super Mario Bros Movie
+http://192.168.0.136:3000/streamed-movies/The%20Super%20Mario%20Bros%20Movie.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/qhb1qOilapbapxWQn9jtRCMwXJF.jpg" group-title="Movies",Wonka
+http://192.168.0.136:3000/streamed-movies/Wonka.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/5OSfx8jJrjHWO9SU3Wtfd7Rs8PF.jpg" group-title="Movies",The Serpent
+http://192.168.0.136:3000/streamed-movies/The%20Serpent.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/1AnXfjxFqMsQmUPSvt9YxUJhfFw.jpg" group-title="Movies",Dead for a Dollar
+http://192.168.0.136:3000/streamed-movies/Dead%20for%20a%20Dollar.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/xBFyJHvXCTgf9Vmq5uCnXRHrMQ4.jpg" group-title="Movies",Ferrari
+http://192.168.0.136:3000/streamed-movies/Ferrari.mkv
+#EXTINF:-1 tvg-logo="https://image.tmdb.org/t/p/w500/1m0CTxlotr8H8GaoioL2IJHL1gW.jpg" group-title="Movies",All Fun and Games
+http://192.168.0.136:3000/streamed-movies/All%20Fun%20and%20Games.mkv

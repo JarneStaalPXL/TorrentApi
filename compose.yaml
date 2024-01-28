@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  nodeapp:
+    build: .
+    volumes:
+      - .:/app
+      - node_modules:/app/node/node_modules
+      - /d:/d  # Existing volume mapping
+      - D:/StreamedMovies:/StreamedMovies
+    ports: 
+      - "3001:3001"
+      - "8085:8085"
+    environment:
+      - NODE_ENV=development
+    networks:
+      - webnet
+
+volumes:
+  node_modules:
+
+networks:
+  webnet:
+    driver: bridge

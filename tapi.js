@@ -10,9 +10,11 @@ const app = express();
 const path = "D:\\StreamedMovies";
 const m3uFilePath = "D:\\TorrentApp\\public\\movies.m3u";
 const terminalSocket = require("./terminalSocket");
+const cronjob = require("./cronjob");
 const downloadPopularMoviesBoolean = true;
 
 const MAX_CONNECTIONS = 1; // Set this to a reasonable number
+const MAX_CONCURRENT_DOWNLOADS = 2;
 
 const allowedOrigins = [
   "http://192.168.0.136:8090",
@@ -21,11 +23,13 @@ const allowedOrigins = [
   "http://84.193.148.142:3001", // Add this line
 ];
 
-app.use(
-  cors({
-    origin: "*",
-  })
-);
+app.use(cors({
+  origin: "*", // This will allow all origins
+  methods: ['GET', 'POST', 'DELETE', 'UPDATE', 'PUT', 'PATCH'] // Add any other methods needed
+}));
+
+app.options('*', cors()); // This will enable preflight across-the-board
+
 
 app.use(
   "/streamed-movies",
@@ -54,31 +58,37 @@ let activeDownloads = [];
 
 let downloadedMovies = [];
 
-(async () => {
-  let popMovies = await getAllPopularMovies();
+let isServerRunning = false;
 
-  popularMovies = popMovies.map((movie) => {
-    return {
-      title: movie.title,
-      poster: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
-      overview: movie.overview,
-      releaseDate: movie.release_date,
-      voteAverage: movie.vote_average,
-      voteCount: movie.vote_count,
-    };
-  });
+app.listen(3001, "0.0.0.0", () => {
+  console.log("App listening on port 3001");
+  updateM3UFile();
+});
 
-  getAllDownloadedMovies();
+// (async () => {
+//     let popMovies = await getAllPopularMovies();
 
-  if (downloadPopularMoviesBoolean)
-    downloadPopularMovies();
+//     popularMovies = popMovies.map((movie) => {
+//       return {
+//         title: movie.title,
+//         poster: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
+//         overview: movie.overview,
+//         releaseDate: movie.release_date,
+//         voteAverage: movie.vote_average,
+//         voteCount: movie.vote_count,
+//       };
+//     });
 
-  // Rest of your code here
-  app.listen(3001, "0.0.0.0", () => {
-    console.log("App listening on port 3001");
-    updateM3UFile();
-  });
-})();
+//     downloadedMovies = getAllDownloadedMovies();
+
+//     if (downloadPopularMoviesBoolean) downloadPopularMovies();
+
+//     // Rest of your code here
+//     app.listen(3001, "0.0.0.0", () => {
+//       console.log("App listening on port 3001");
+//       updateM3UFile();
+//     });
+// })();
 
 async function getAllPopularMovies() {
   let allMovies = [];
@@ -112,6 +122,8 @@ function getAllDownloadedMovies() {
     }
   });
 
+  console.log(movies);
+
   return movies;
 }
 
@@ -140,17 +152,26 @@ function normalizeTitle(title) {
   );
 }
 
-function isMovieDownloadingOrExists(title) {
-  const normalizedTitle = normalizeTitle(title);
+async function searchTMDB(title) {
+  const apiUrl = `https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${encodeURIComponent(
+    title
+  )}`;
+  try {
+    const response = await axios.get(apiUrl);
+    if (response.data.results.length > 0) {
+      return response.data.results[0]; // returns the first match
+    }
+    return null; // No match found
+  } catch (error) {
+    console.error(`Error searching TMDB for ${title}:`, error);
+    return null;
+  }
+}
 
-  // Compare the normalized title against each downloaded movie's normalized title
-  return downloadedMovies.some((movie) => {
-    const movieTitleNormalized = normalizeTitle(movie.title);
-    return (
-      movieTitleNormalized.includes(normalizedTitle) ||
-      normalizedTitle.includes(movieTitleNormalized)
-    );
-  });
+function isMovieDownloadingOrExists(movie) {
+  const normalizedTitle = normalizeTitle(movie.title);
+  // Check if the normalized title exists in the downloadedMovies array
+  return downloadedMovies.includes(normalizedTitle);
 }
 
 function updateM3UFile(movie) {
@@ -200,6 +221,11 @@ function updateM3UFile(movie) {
   fs.writeFileSync(m3uFilePath, m3uContents.join("\n"));
 }
 
+app.get('/server/status', (req, res) => {
+  const serverStatus = isServerRunning ? 'running' : 'stopped';
+  res.json({ status: serverStatus });
+});
+
 async function searchTorrent(query, quality = "1080", limit = 20) {
   try {
     query = query;
@@ -210,28 +236,32 @@ async function searchTorrent(query, quality = "1080", limit = 20) {
       return null;
     }
 
-    // Filter out torrents that have MP4 files in the title or file name
+    // Filter to exclude MP4 files and French torrents
     const suitableTorrent = torrents.find((torrent) => {
-      const files = torrent.files || [];
-      return (
-        !files.some((file) => file.name.toLowerCase().endsWith(".mp4")) &&
-        !/\.mp4/i.test(torrent.title) &&
-        !/french/i.test(torrent.title.toLowerCase())
-      );
+      // Check if the torrent title explicitly mentions MP4
+      const isMp4InTitle = /\.mp4/i.test(torrent.title);
+      
+      // Check if the torrent title or its files indicate it's a French torrent
+      const isFrench = /french/i.test(torrent.title.toLowerCase()) ||
+                       (torrent.files && torrent.files.some(file => /french/i.test(file.name.toLowerCase())));
+
+      // Assume the `files` property exists and contains the file names within the torrent
+      // This might need adjustment based on your torrent search API's response structure
+      const hasMp4File = torrent.files && torrent.files.some(file => /\.mp4$/i.test(file.name));
+
+      // Exclude torrents if MP4 is in the title, any of the files end with .mp4, or if it's French
+      return !isMp4InTitle && !hasMp4File && !isFrench;
     });
 
     if (!suitableTorrent) {
-      // No suitable torrents found
+      // No suitable torrents found that meet the criteria
       return null;
     }
 
     const magnetLink = await TorrentSearchApi.getMagnet(suitableTorrent);
 
     // Check if the magnet link is valid (not a placeholder)
-    if (
-      !magnetLink ||
-      magnetLink.includes("0000000000000000000000000000000000000000")
-    ) {
+    if (!magnetLink || magnetLink.includes("0000000000000000000000000000000000000000")) {
       console.log(`\nInvalid magnet link for ${query}`);
       return null;
     }
@@ -242,6 +272,8 @@ async function searchTorrent(query, quality = "1080", limit = 20) {
     return null; // Handle any errors and return null for not found
   }
 }
+
+
 
 app.post("/download", async (req, res) => {
   const torrentName = req.body.name;
@@ -337,6 +369,73 @@ app.post("/download", async (req, res) => {
   });
 });
 
+app.post("/server/control/onoff", (req, res) => {
+  console.log(req.body); // Log the body to see what's being sent
+  const command = req.body.command;
+
+  if (command === "start") {
+    isServerRunning = true;
+    startServer();
+    console.log("Received start command");
+    res.status(200).json({ message: "Server started" });
+  } else if (command === "stop") {
+    isServerRunning = false;
+    stopServer();
+    console.log("Received stop command");
+    res.status(200).json({ message: "Server stopped" });
+  } else {
+    res.status(400).json({ message: "Invalid command" });
+  }
+});
+
+
+async function startServer() {
+  if (isServerRunning) {
+    let popMovies = await getAllPopularMovies();
+
+    if (!isServerRunning) return; // Stop if the server should no longer run
+
+    popularMovies = popMovies.map((movie) => {
+      return {
+        title: movie.title,
+        poster: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
+        overview: movie.overview,
+        releaseDate: movie.release_date,
+        voteAverage: movie.vote_average,
+        voteCount: movie.vote_count,
+      };
+    });
+
+    if (!isServerRunning) return; // Stop if the server should no longer run
+
+    downloadedMovies = getAllDownloadedMovies();
+
+    if (downloadPopularMoviesBoolean && isServerRunning) downloadPopularMovies();
+
+  }
+}
+
+
+async function stopServer() {
+  isServerRunning = false; // Immediately mark the server as not running
+
+  if (webTorrentClient) {
+    const destroyPromises = webTorrentClient.torrents.map(torrent => 
+      new Promise(resolve => torrent.destroy({ destroyStore: true }, resolve))
+    );
+    await Promise.all(destroyPromises);
+    console.log("All torrents destroyed successfully.");
+  }
+
+  console.log("Server operations stopped.");
+  // Clear activeDownloads list
+  activeDownloads = [];
+}
+
+
+
+
+
 app.get("/popular-movies", (req, res) => {
   res.json(popularMovies);
 });
@@ -385,9 +484,39 @@ function removeDownload(title) {
 }
 
 async function downloadPopularMovies() {
+  if (!isServerRunning) {
+    console.log("Server is stopped, halting download of popular movies.");
+    return; // Exit the function if the server is not running
+  }
   for (const movie of popularMovies) {
-    if (!isMovieDownloadingOrExists(movie.title)) {
-      const torrentInfo = await searchTorrent(movie.title);
+    if (activeDownloads.length >= MAX_CONCURRENT_DOWNLOADS) {
+      console.log(
+        "Maximum concurrent downloads reached. Waiting for a slot to free up..."
+      );
+      await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait for 10 seconds before checking again
+      continue; // Skip to the next iteration
+    }
+
+    for (const ad of activeDownloads) {
+      if (ad.speed < 1 && ad.progress < 1) {
+        console.log("Skipping download due to low speed.");
+        //remove from activeDownloads
+        removeDownload(ad.title);
+        continue; // Skip to the next iteration
+      }
+    }
+
+    if (!isMovieDownloadingOrExists(movie)) {
+      // Search TMDB for accurate movie details
+      const tmdbMovie = await searchTMDB(movie.title);
+      let movieTitleForTorrentSearch = movie.title;
+      if (tmdbMovie) {
+        movieTitleForTorrentSearch = tmdbMovie.title; // Use TMDB title if available
+      } else {
+        return;
+      }
+
+      const torrentInfo = await searchTorrent(movieTitleForTorrentSearch);
       if (torrentInfo) {
         let torrentUrl = torrentInfo;
 
@@ -410,12 +539,14 @@ async function downloadPopularMovies() {
             { path: downloadPath, maxConns: MAX_CONNECTIONS },
             (torrent) => {
               console.log(`\nDownloading: ${torrent.name}`);
+              torrent.name = movieTitleForTorrentSearch;
               const download = {
                 title: torrent.name,
                 progress: 0, // initial progress is 0%
+                speed: "0 MB/s", // initial speed
               };
               activeDownloads.push(download);
-              
+
               terminalSocket.sendActiveDownloadsToClients(); // This will send the updated list to all clients
 
               let lastReportedPercentage = -1;
@@ -424,58 +555,86 @@ async function downloadPopularMovies() {
 
               torrent.on("download", () => {
                 const currentPercentage = Math.floor(torrent.progress * 100);
+                const downloadSpeedMBs = (
+                  torrent.downloadSpeed /
+                  1024 /
+                  1024
+                ).toFixed(2); // Convert speed to MB/s and format to 2 decimal places
+
+                // Update the corresponding download object in activeDownloads
                 const downloadIndex = activeDownloads.findIndex(
                   (d) => d.title === torrent.name
                 );
                 if (downloadIndex !== -1) {
                   activeDownloads[downloadIndex].progress = currentPercentage;
+                  activeDownloads[
+                    downloadIndex
+                  ].speed = `${downloadSpeedMBs} MB/s`;
                 }
+
                 if (currentPercentage !== lastReportedPercentage) {
-                  // console.log(
-                  //   `\n${normalizedTitle} | Progress: ${currentPercentage}% complete (down: ${(
-                  //     torrent.downloadSpeed / 1048576
-                  //   ).toFixed(2)} MB/s up: ${(
-                  //     torrent.uploadSpeed / 1048576
-                  //   ).toFixed(2)} MB/s peers: ${torrent.numPeers})`
-                  // );
                   lastReportedPercentage = currentPercentage;
-                  terminalSocket.sendActiveDownloadsToClients(); // This will send the updated list to all clients
+                  // Update your logs or UI here if needed
+                  terminalSocket.sendActiveDownloadsToClients(); // Send updated list to clients
                 }
+
+                torrent.on('download', (bytes) => {
+                  // This will run many times throughout the download process
+                  // For each file in the torrent, check if it has been completely downloaded
+                  torrent.files.forEach((file) => {
+                    const filePath = `${torrent.path}\\${file.path}`;
+                    const fileDone = (file.length === file.downloaded);
+                
+                    if (fileDone && !file.renamed) {
+                      // The file is completely downloaded and not yet renamed
+                      const normalizedTitle = normalizeTitle(file.name);
+                      const newFilePath = `${torrent.path}\\${normalizedTitle}`;
+                      
+                      // Attempt to rename the file
+                      try {
+                        fs.renameSync(filePath, newFilePath);
+                        file.renamed = true; // Mark as renamed to avoid repeated renaming
+                        console.log(`Renamed ${file.name} to ${normalizedTitle}`);
+                      } catch (err) {
+                        console.error(`Error renaming file ${file.name}:`, err);
+                      }
+                    }
+                  });
+                });
+                
+                
               });
 
               torrent.on("done", () => {
-                console.log(`\n${normalizedTitle} | Download completed`);
-
-                // Find the downloaded movie's file path
-                const movieFilePath = path + "\\" + torrent.files[0].path;
-                const normalizedFilePath =
-                  path + "\\" + normalizedTitle + ".mkv"; // Assuming the file is an .mkv
-
+                // Assuming torrent.files[0] is the main file you want to rename
+                const originalFilePath = path + "\\" + torrent.files[0].path; // Old file path
+                const fileExtension = originalFilePath.split('.').pop(); // Extract file extension
+                const newFileName = normalizedTitle + "." + fileExtension; // New file name
+                const newFilePath = path + "\\" + newFileName; // New file path
+              
                 // Rename the downloaded file to the normalized title
-                fs.rename(movieFilePath, normalizedFilePath, (err) => {
+                fs.rename(originalFilePath, newFilePath, (err) => {
                   if (err) {
                     console.error(`Error renaming file: ${err}`);
                     return;
                   }
-
+              
+                  console.log(`\n${normalizedTitle} | Download completed`);
                   downloadedMovies.push({ title: normalizedTitle });
-                  terminalSocket.sendActiveDownloadsToClients(); // This will send the updated list to all clients
+              
+                  // If you want to update the clients with the new download information
+                  terminalSocket.sendActiveDownloadsToClients();
+              
+                  // Remove the download from the activeDownloads array
                   removeDownload(torrent.name);
-
-                  // Generate the correct URL path for the movie
-                  let relativeFilePath = normalizedFilePath
-                    .replace(path + "\\", "")
-                    .replace(/\\/g, "/");
-                  let movieEntry = `#EXTINF:-1 tvg-logo="${
-                    movie.poster
-                  }" group-title="Movies",${normalizedTitle}\nhttp://192.168.0.136:3000/streamed-movies/${encodeURIComponent(
-                    relativeFilePath
-                  )}\n`;
-
-                  // Append the new movie entry to the M3U file
+              
+                  // Update the M3U file with the new file path
+                  const relativeFilePath = newFilePath.replace(path + "\\", "").replace(/\\/g, "/");
+                  const movieEntry = `#EXTINF:-1 tvg-logo="${movie.poster}" group-title="Movies",${normalizedTitle}\nhttp://192.168.0.136:3000/streamed-movies/${encodeURIComponent(relativeFilePath)}\n`;
                   fs.appendFileSync(m3uFilePath, movieEntry);
                 });
               });
+              
 
               torrent.on("error", (err) => {
                 console.error(`${torrent.name} | Error: ${err}`);
@@ -489,7 +648,6 @@ async function downloadPopularMovies() {
   }
 }
 
-module.exports.getActiveDownloads = function() {
+module.exports.getActiveDownloads = function () {
   return activeDownloads;
 };
-
